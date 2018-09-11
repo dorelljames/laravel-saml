@@ -84,4 +84,15 @@ class LaravelSamlServiceProvider extends ServiceProvider
             $this->loadRoutesFrom(__DIR__ . '/routes.php');
         }
     }
+
+    /**
+     * Load the standard routes file for the application.
+     *
+     * @param  string  $path
+     * @return string
+     */
+    protected function loadRoutesFrom($path)
+    {
+        return $path;
+    }
 }

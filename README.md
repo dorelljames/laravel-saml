@@ -1,6 +1,6 @@
-# Laravel SAML
+# Laravel SAML for 5.1
 
-Laravel-SAML implements a SAML2 IDP plugin to transform laravel into a SAML identity provider (IDP) beside the regular authentication. The package is designed to work with Laravel 5.4 or above.
+Laravel-SAML implements a SAML2 IDP plugin to transform laravel into a SAML identity provider (IDP) beside the regular authentication. The package is designed to work with Laravel 5.1. This is a fork from [kingstarter/laravel-saml](https://github.com/kingstarter/laravel-saml) which is intended for Laravel 5.4 or above. Haven't tested with Laravel 5.2 or 5.3 though PR's are welcome or you can just test as it required me little work to get this working on Laravel 5.1, just let me know.
 
 The package is based on [Dustin Parham's guide to implement a SAML IDP with laravel](https://imbringingsyntaxback.com/implementing-a-saml-idp-with-laravel/). To get a better basic understanding for SAML in general, read [Cheung's SAML for Web Developers](https://github.com/jch/saml).
 
@@ -11,24 +11,18 @@ The package is based on [Dustin Parham's guide to implement a SAML IDP with lara
 Using ```composer```: 
 
 ``` 
-composer require "kingstarter/laravel-saml":"dev-master"
+composer require "dorelljames/laravel-saml-5.1":"dev-master"
 ```
 
 #### Lightsaml dependency problem
 
 In case you run in a current lightsaml dependency problem regarding symfony 4 (event dispatcher) you might consider [using a fork of lightsaml allowing to use symfony 4](https://github.com/kingstarter/laravel-saml/issues/8#issuecomment-366991715).
 
-#### Laravel 5.4
+#### Laravel 5.1
 Add the service provider to ```config/app.php```
 
 ```
     KingStarter\LaravelSaml\LaravelSamlServiceProvider::class,
-```
-#### Laravel 5.5+
-This package supports Laravel's Package Auto Discovery and should be automatically loaded when required using composer. If the package is not auto discovered run
-
-```bash
-    php artisan package:discover
 ```
 #### Configuration
 There is one configuration file to publish and the config/filesystem.php file that needs to be extended. The command
@@ -36,11 +30,11 @@ There is one configuration file to publish and the config/filesystem.php file th
 php artisan vendor:publish --tag="saml_config"
 ```
 
-will publish the config/saml.php file. 
+will publish the `config/saml.php` file. 
 
 #### SAML SP entries
 
-Within the saml.php config file the SAML Service Provider array needs to be filled. Subsequently an example from the config/saml.php file:
+Within the `saml.php` config file the SAML Service Provider array needs to be filled. Subsequently an example from the `config/saml.php` file:
 
 ```
 'sp' => [        
@@ -125,7 +119,7 @@ Add the contents to the metadata.xml, cert.pem and key.pem files for the IDP.
 ### Using the SAML package
 
 To use the SAML package, some files need to be modified. Within your login view, problably ```resources/views/auth/login.blade.php``` add a SAMLRequest field beneath the CSRF field (this is actually a good place for it):
-```
+```php
     {{-- The hidden CSRF field for secure authentication --}}
     {{ csrf_field() }}
     {{-- Add a hidden SAML Request field for SAML authentication --}}
@@ -134,36 +128,86 @@ To use the SAML package, some files need to be modified. Within your login view,
     @endif
 ```
 
-The SAMLRequest field will be filled automatically when a SAMLRequest is sent by a http request and therefore initiate a SAML authentication attempt. To initiate the SAML auth, the login and redirect functions need to be modified. Within ```app/Http/Middleware/AuthenticatesUsers.php``` add following lines to both the top and the authenticated function: 
+The SAMLRequest field will be filled automatically when a SAMLRequest is sent by a http request and therefore initiate a SAML authentication attempt. To initiate the SAML auth, the login and redirect functions need to be modified.
+
+Within ```app/Http/Controllers/Auth/AuthenticatesUsers.php``` add following lines to `postLogin`, `handleUserWasAuthenticated` functions respectively: 
 (NOTE: you might need to copy it out from vendor/laravel/framework/src/Illuminate/Foundation/Auth/ to your Middleware directory) 
 
 ```
 <?php
 
-namespace App\Http\Middleware;
+namespace App\Http\Controllers\Auth;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Lang;
 use Illuminate\Foundation\Auth\RedirectsUsers;
-use Illuminate\Foundation\Auth\ThrottlesLogins;
 
 use KingStarter\LaravelSaml\Http\Traits\SamlAuth;
 
 trait AuthenticatesUsers
 {
-    use RedirectsUsers, ThrottlesLogins, SamlAuth;
+    use RedirectsUsers, SamlAuth;
     
     ...
 
-    protected function authenticated(Request $request, $user)
+    public function postLogin(Request $request)
     {
-        if(Auth::check() && isset($request['SAMLRequest'])) {
+        ...
+
+        // Preserve SAMLRequest when found as login is reattempted
+        $loginPath = isset($request['SAMLRequest']) ? $this->loginPath() . "?SAMLRequest=" . urlencode($request['SAMLRequest']) : $this->loginPath();
+
+        return redirect($loginPath)
+            ->withInput($request->only($this->loginUsername(), 'remember'))
+            ->withErrors([
+                $this->loginUsername() => $this->getFailedLoginMessage(),
+            ]);
+    }
+    
+    protected function handleUserWasAuthenticated(Request $request, $throttles)
+    {
+        // Forward request to SAML SP after successful auth
+        if (Auth::check() && isset($request['SAMLRequest'])) {
             $this->handleSamlLoginRequest($request);
         }
+
+        ...
     }
     
     ...
 ```
+
+To use the trait `AuthenticatesUsers` we need to tell `AuthController` to use it but by which is used in `AuthenticatesAndRegistersUsers` trait. Therefore, go to `vendor/laravel/framework/src/Illuminate/Foundation/Auth/` and copy `AuthenticatesAndRegistersUsers.php` to `app/Http/Controllers/Auth/AuthenticatesAndRegistersUsers.php`.
+
+Make sure you update namespace and tell where `ReggistersUsers` is located by `use Illuminate\Foundation\Auth\RegistersUsers;`.  It should like this below:
+```
+<?php
+
+namespace App\Http\Controllers\Auth;
+
+use Illuminate\Foundation\Auth\RegistersUsers;
+
+trait AuthenticatesAndRegistersUsers
+{
+    use AuthenticatesUsers, RegistersUsers {
+        AuthenticatesUsers::redirectPath insteadof RegistersUsers;
+    }
+}
+```
+
+Now lastly, update `app/Http/Controllers/Auth/AuthController.php` and replace/update:
+
+From:
+```
+use Illuminate\Foundation\Auth\AuthenticatesAndRegistersUsers;
+```
+
+To:
+```
+use App\Http\Controllers\Auth\AuthenticatesAndRegistersUsers;
+```
+
 
 To allow later direct redirection when somebody is already logged in, we need to add also some lines to ```app/Http/Middleware/RedirectIfAuthenticated.php```:
 ```
@@ -185,14 +229,15 @@ class RedirectIfAuthenticated
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \Closure  $next
-     * @param  string|null  $guard
      * @return mixed
      */
     public function handle($request, Closure $next, $guard = null)
     {
-        if(Auth::check() && isset($request['SAMLRequest'])){  
+        // If authenticated with SAML Request, forward to SP
+        if (Auth::check() && isset($request['SAMLRequest'])) { 
             $this->handleSamlLoginRequest($request);
         }
+
         if (Auth::guard($guard)->check()) {
             return redirect('/home');
         }
@@ -217,3 +262,10 @@ In case that there are some problems receiving the Base64 string or evaluating S
 
 Make sure that the environmental logging variable ```APP_LOG_LEVEL``` is set to debug within your ```.env``` file.
 
+## Credits
+
+To awesome [kingstarter/laravel-saml](https://github.com/kingstarter/laravel-saml) package from which this package is derived.
+
+## Issues
+
+Please file issue at GitHub at (dorelljames/laravel-saml)[https://github.com/dorelljames/laravel-saml]

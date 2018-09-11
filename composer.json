@@ -1,10 +1,25 @@
 {
-    "name": "kingstarter/laravel-saml",
-    "description": "SAML support to make a laravel application to both a SAML IDP and a SAML SP.",
-    "keywords": ["laravel", "saml", "illuminate", "auth", "acl", "login", "sso", "idp", "sp"],
+    "name": "dorelljames/laravel-saml-5.1",
+    "description":
+        "SAML support to make a laravel application to both a SAML IDP and a SAML SP. Tested on Laravel 5.1",
+    "keywords": [
+        "laravel",
+        "saml",
+        "illuminate",
+        "auth",
+        "acl",
+        "login",
+        "sso",
+        "idp",
+        "sp"
+    ],
     "license": "MIT",
     "version": "dev-master",
     "authors": [
+        {
+            "name": "Dorell James Galang",
+            "email": "galangdj@gmail.com"
+        },
         {
             "name": "Steve Hegenbart",
             "email": "steve.hegenbart@kingstarter.de"
@@ -12,7 +27,7 @@
     ],
     "require": {
         "php": ">=5.5.9",
-        "illuminate/support": "~5.2",
+        "illuminate/support": "5.1.x|5.2.x|5.3.x|5.4.x",
         "lightsaml/lightsaml": "^1.3"
     },
     "autoload": {
@@ -22,9 +37,9 @@
     },
     "extra": {
         "laravel": {
-          "providers": [
-            "KingStarter\\LaravelSaml\\LaravelSamlServiceProvider"
-          ]
+            "providers": [
+                "KingStarter\\LaravelSaml\\LaravelSamlServiceProvider"
+            ]
         }
     }
 }
